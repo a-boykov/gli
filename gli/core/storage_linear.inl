@@ -136,12 +136,28 @@ namespace gli
 		storage_linear::data_type const* const ImageSrc = StorageSrc.data() + BaseOffsetSrc;
 		storage_linear::data_type* const ImageDst = this->data() + BaseOffsetDst;
 
+		const storage_linear::extent_type srcStorageExtent = StorageSrc.extent(LevelSrc);
+        	const storage_linear::extent_type srcBlockExtent = StorageSrc.block_extent();
+        	auto srcExtent = srcStorageExtent / srcBlockExtent;
+		if(srcStorageExtent.x % srcBlockExtent.x != 0)
+        	{
+		    ++srcExtent.x;
+		}
+		if(srcStorageExtent.y % srcBlockExtent.y != 0)
+		{
+		    ++srcExtent.y;
+		}
+		if(srcStorageExtent.z % srcBlockExtent.z != 0)
+		{
+		    ++srcExtent.z;
+		}
+		
 		for(size_t BlockIndexZ = 0, BlockCountZ = BlockCount.z; BlockIndexZ < BlockCountZ; ++BlockIndexZ)
 		for(size_t BlockIndexY = 0, BlockCountY = BlockCount.y; BlockIndexY < BlockCountY; ++BlockIndexY)
 		{
 			extent_type const BlockIndex(0, BlockIndexY, BlockIndexZ);
-			gli::size_t const OffsetSrc = StorageSrc.image_offset(BlockIndexSrc + BlockIndex, StorageSrc.extent(LevelSrc)) * StorageSrc.block_size();
-			gli::size_t const OffsetDst = this->image_offset(BlockIndexDst + BlockIndex, this->extent(LevelDst)) * this->block_size();
+			gli::size_t const OffsetSrc = StorageSrc.image_offset(BlockIndexSrc + BlockIndex, srcExtent) * StorageSrc.block_size();
+			gli::size_t const OffsetDst = this->image_offset(BlockIndexDst + BlockIndex, dstExtent) * this->block_size();
 			storage_linear::data_type const* const DataSrc = ImageSrc + OffsetSrc;
 			storage_linear::data_type* DataDst = ImageDst + OffsetDst;
 			memcpy(DataDst, DataSrc, this->block_size() * BlockCount.x);
