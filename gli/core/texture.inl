@@ -360,11 +360,26 @@ namespace gli
 	)
 	{
 		storage_type::extent_type const BlockExtent = this->Storage->block_extent();
+		storage_type::extent_type BlocksCount = Extent / BlockExtent;
+		
+	        if(Extent.x % BlockExtent.x != 0)
+	        {
+	            ++BlocksCount.x;
+	        }
+	        if(Extent.y % BlockExtent.y != 0)
+	        {
+	            ++BlocksCount.y;
+	        }
+	        if(Extent.z % BlockExtent.z != 0)
+	        {
+	            ++BlocksCount.z;
+	        }
+		
 		this->Storage->copy(
 			*TextureSrc.Storage,
 			LayerSrc, FaceSrc, LevelSrc, OffsetSrc / BlockExtent,
 			LayerDst, FaceDst, LevelDst, OffsetDst / BlockExtent,
-			Extent / BlockExtent);
+			BlocksCount);
 	}
 
 	template <typename gen_type>
