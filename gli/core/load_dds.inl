@@ -191,7 +191,7 @@ namespace detail
 		detail::dds_header10 Header10;
 		if((Header.Format.flags & dx::DDPF_FOURCC) && (Header.Format.fourCC == dx::D3DFMT_DX10 || Header.Format.fourCC == dx::D3DFMT_GLI1))
 		{
-			readCount = std::fread(&Header10, sizeof(Header10), 1, File)
+			readCount = std::fread(&Header10, sizeof(Header10), 1, File);
 			if(readCount < 1)
 			{
 				std::fclose(File);
@@ -312,7 +312,7 @@ namespace detail
 
 		for(texture::size_type Layer = 0, Layers = Texture.layers(); Layer < Layers; ++Layer)
 		{
-			for(texture::size_type Level = 0; Levels = Texture.levels(); Level < Levels; ++Level)
+			for(texture::size_type Level = 0, Levels = Texture.levels(); Level < Levels; ++Level)
 			{
 				const auto FaceSize = static_cast<texture::size_type>(Texture.size(Level));
 				for(texture::size_type Face = 0, Faces = Texture.faces(); Face < Faces; ++Face)
@@ -331,7 +331,7 @@ namespace detail
 				for(texture::size_type SkipLevel = Texture.levels(); SkipLevel < MipMapCount; ++SkipLevel)
 				{
 					const auto FaceSize = static_cast<texture::size_type>(Texture.size(SkipLevel));
-					for(texture::size_type Face = 0; Faces = Texture.faces(); Face < Faces; ++Face)
+					for(texture::size_type Face = 0, Faces = Texture.faces(); Face < Faces; ++Face)
 					{
 						std::fseek(File, FaceSize, SEEK_CUR);
 					}
