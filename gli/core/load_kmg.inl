@@ -87,6 +87,6 @@ namespace detail
 
 	inline texture load_kmg(std::string const & Filename)
 	{
-		return load_kmg100(Filename.c_str());
+		return detail::load_kmg100(Filename.c_str());
 	}
 }//namespace gli
