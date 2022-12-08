@@ -152,6 +152,22 @@ namespace gli
 		    ++srcExtent.z;
 		}
 		
+		const storage_linear::extent_type dstStorageExtent = this->extent(LevelDst);
+		const storage_linear::extent_type dstBlockExtent = this->block_extent();
+		auto dstExtent = dstStorageExtent / dstBlockExtent;
+		if(dstStorageExtent.x % dstBlockExtent.x != 0)
+		{
+		    ++dstExtent.x;
+		}
+		if(dstStorageExtent.y % dstBlockExtent.y != 0)
+		{
+		    ++dstExtent.y;
+		}
+		if(dstStorageExtent.z % dstBlockExtent.z != 0)
+		{
+		    ++dstExtent.z;
+		}
+		
 		for(size_t BlockIndexZ = 0, BlockCountZ = BlockCount.z; BlockIndexZ < BlockCountZ; ++BlockIndexZ)
 		for(size_t BlockIndexY = 0, BlockCountY = BlockCount.y; BlockIndexY < BlockCountY; ++BlockIndexY)
 		{
