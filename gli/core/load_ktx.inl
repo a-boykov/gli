@@ -50,14 +50,37 @@ namespace detail
 			return TARGET_2D;
 	}
 
-	inline texture load_ktx10(char const* Data, std::size_t Size)
+	inline texture load_ktx10(char const* Filename)
 	{
-		detail::ktx_header10 const & Header(*reinterpret_cast<detail::ktx_header10 const*>(Data));
-
-		size_t Offset = sizeof(detail::ktx_header10);
-
-		// Skip key value data
-		Offset += Header.BytesOfKeyValueData;
+		FILE* File = detail::open_file(Filename, "rb");
+		if(!File)
+			return texture();
+		
+		std::remove_const<decltype(detail::FOURCC_KTX10)>::type FourCC {};
+		if(std::fread(FourCC, sizeof(FourCC), 1, File) < 1)
+		{
+			std::fclose(File);
+			return texture();
+		}
+		
+		if(memcmp(FourCC, detail::FOURCC_KTX10, sizeof(detail::FOURCC_KTX10)) != 0)
+		{
+			std::fclose(File);
+			return texture();
+		}
+		
+		detail::ktx_header10 Header{};
+		if(std::fread(&Header, sizeof(Header), 1, File) < 1)
+		{
+			std::fclose(File);
+			return texture();
+		}
+		
+		if(Header.BytesOfKeyValueData > 0)
+		{
+			// Skip key value data
+			std::fseek(File, Header.BytesOfKeyValueData, SEEK_CUR);
+		}
 
 		gl GL(gl::PROFILE_KTX);
 		gli::format const Format = GL.find(
@@ -81,57 +104,36 @@ namespace detail
 
 		for(texture::size_type Level = 0, Levels = Texture.levels(); Level < Levels; ++Level)
 		{
-			Offset += sizeof(std::uint32_t);
+			std::fseek(File, sizeof(std::uint32_t), SEEK_CUR);
 
 			for(texture::size_type Layer = 0, Layers = Texture.layers(); Layer < Layers; ++Layer)
-			for(texture::size_type Face = 0, Faces = Texture.faces(); Face < Faces; ++Face)
 			{
-				texture::size_type const FaceSize = Texture.size(Level);
-
-				std::memcpy(Texture.data(Layer, Face, Level), Data + Offset, FaceSize);
-
-				Offset += std::max(BlockSize, glm::ceilMultiple(FaceSize, static_cast<texture::size_type>(4)));
+				for(texture::size_type Face = 0, Faces = Texture.faces(); Face < Faces; ++Face)
+				{
+					texture::size_type const FaceSize = Texture.size(Level);
+					if(std::fread(Texture.data(Layer, Face, Level), FaceSize, 1, File) < 1)
+					{
+						std::fclose(File);
+						return texture();
+					}
+					
+					auto FaceRoundSize = std::max(BlockSize, glm::ceilMultiple(FaceSize, static_cast<texture::size_type>(4)));
+					auto SkipBytes = long(FaceRoundSize - FaceSize);
+					if(SkipBytes > 0)
+					{
+						std::fseek(File, SkipBytes, SEEK_CUR);
+					}
+				}
 			}
 		}
-
+		
+		std::fclose(File);
 		return Texture;
 	}
 }//namespace detail
 
-	inline texture load_ktx(char const* Data, std::size_t Size)
-	{
-		GLI_ASSERT(Data && (Size >= sizeof(detail::ktx_header10)));
-
-		// KTX10
-		{
-			if(memcmp(Data, detail::FOURCC_KTX10, sizeof(detail::FOURCC_KTX10)) == 0)
-				return detail::load_ktx10(Data + sizeof(detail::FOURCC_KTX10), Size - sizeof(detail::FOURCC_KTX10));
-		}
-
-		return texture();
-	}
-
-	inline texture load_ktx(char const* Filename)
-	{
-		FILE* File = detail::open_file(Filename, "rb");
-		if(!File)
-			return texture();
-
-		long Beg = std::ftell(File);
-		std::fseek(File, 0, SEEK_END);
-		long End = std::ftell(File);
-		std::fseek(File, 0, SEEK_SET);
-
-		std::vector<char> Data(static_cast<std::size_t>(End - Beg));
-
-		std::fread(&Data[0], 1, Data.size(), File);
-		std::fclose(File);
-
-		return load_ktx(&Data[0], Data.size());
-	}
-
 	inline texture load_ktx(std::string const& Filename)
 	{
-		return load_ktx(Filename.c_str());
+		return detail::load_ktx10(Filename.c_str());
 	}
 }//namespace gli
