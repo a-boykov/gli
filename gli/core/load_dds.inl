@@ -160,28 +160,46 @@ namespace detail
 	}
 }//namespace detail
 
-	inline texture load_dds(char const * Data, std::size_t Size)
+	inline texture load_dds(char const * Filename)
 	{
-		GLI_ASSERT(Data && (Size >= sizeof(detail::FOURCC_DDS)));
-
-		if(strncmp(Data, detail::FOURCC_DDS, 4) != 0)
+		FILE* File = detail::open_file(Filename, "rb");
+		if(!File)
 			return texture();
-		std::size_t Offset = sizeof(detail::FOURCC_DDS);
+			
+		std::remove_const<decltype(detail::FOURCC_DDS)>::type FourCC;
+		std::size_t readCount = std::fread(FourCC, sizeof(FourCC), 1, File);
+		if(readCount < 1)
+		{
+			std::fclose(File);
+			return texture();
+		}
 
-		GLI_ASSERT(Size >= sizeof(detail::dds_header));
-
-		detail::dds_header const & Header(*reinterpret_cast<detail::dds_header const *>(Data + Offset));
-		Offset += sizeof(detail::dds_header);
-
+		if(strncmp(FourCC, detail::FOURCC_DDS, sizeof(FourCC)) != 0)
+		{
+			std::fclose(File);
+			return texture();
+		}
+		
+		detail::dds_header Header{};
+		readCount = std::fread(&Header, sizeof(Header), 1, File);
+		if(readCount < 1)
+		{
+			std::fclose(File);
+			return texture();
+		}
+		
 		detail::dds_header10 Header10;
 		if((Header.Format.flags & dx::DDPF_FOURCC) && (Header.Format.fourCC == dx::D3DFMT_DX10 || Header.Format.fourCC == dx::D3DFMT_GLI1))
 		{
-			std::memcpy(&Header10, Data + Offset, sizeof(Header10));
-			Offset += sizeof(detail::dds_header10);
+			readCount = std::fread(&Header10, sizeof(Header10), 1, File)
+			if(readCount < 1)
+			{
+				std::fclose(File);
+				return texture();
+			}
 		}
 
 		dx DX;
-
 		gli::format Format(gli::FORMAT_UNDEFINED);
 		if((Header.Format.flags & (dx::DDPF_RGB | dx::DDPF_ALPHAPIXELS | dx::DDPF_ALPHA | dx::DDPF_YUV | dx::DDPF_LUMINANCE)) && Format == gli::FORMAT_UNDEFINED && Header.Format.bpp > 0 && Header.Format.bpp < 64)
 		{
@@ -292,31 +310,37 @@ namespace detail
 			texture::extent_type(Header.Width, Header.Height, DepthCount),
 			std::max<texture::size_type>(Header10.ArraySize, 1), FaceCount, MipMapCount);
 
-		std::size_t const SourceSize = Offset + Texture.size();
-		GLI_ASSERT(SourceSize == Size);
-
-		std::memcpy(Texture.data(), Data + Offset, Texture.size());
-
-		return Texture;
-	}
-
-	inline texture load_dds(char const * Filename)
-	{
-		FILE* File = detail::open_file(Filename, "rb");
-		if(!File)
-			return texture();
-
-		long Beg = std::ftell(File);
-		std::fseek(File, 0, SEEK_END);
-		long End = std::ftell(File);
-		std::fseek(File, 0, SEEK_SET);
-
-		std::vector<char> Data(static_cast<std::size_t>(End - Beg));
-
-		std::fread(&Data[0], 1, Data.size(), File);
+		for(texture::size_type Layer = 0, Layers = Texture.layers(); Layer < Layers; ++Layer)
+		{
+			for(texture::size_type Level = 0; Levels = Texture.levels(); Level < Levels; ++Level)
+			{
+				const auto FaceSize = static_cast<texture::size_type>(Texture.size(Level));
+				for(texture::size_type Face = 0, Faces = Texture.faces(); Face < Faces; ++Face)
+				{
+					if(std::fread(Texture.data(Layer, Face, Level), FaceSize, 1, File) < 1)						
+					{
+						std::fclose(File);
+						return texture();
+					}
+				}
+			}
+			
+			if(Layer + 1 < Texture.layers())
+			{
+				//skip unused levels
+				for(texture::size_type SkipLevel = Texture.levels(); SkipLevel < MipMapCount; ++SkipLevel)
+				{
+					const auto FaceSize = static_cast<texture::size_type>(Texture.size(SkipLevel));
+					for(texture::size_type Face = 0; Faces = Texture.faces(); Face < Faces; ++Face)
+					{
+						std::fseek(File, FaceSize, SEEK_CUR);
+					}
+				}
+			}
+		}
+		
 		std::fclose(File);
-
-		return load_dds(&Data[0], Data.size());
+		return Texture;
 	}
 
 	inline texture load_dds(std::string const & Filename)
