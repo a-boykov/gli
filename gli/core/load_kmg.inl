@@ -27,11 +27,31 @@ namespace detail
 		std::uint32_t MaxLevel;
 	};
 
-	inline texture load_kmg100(char const * Data, std::size_t Size)
+	inline texture load_kmg100(char const * Filename)
 	{
-		detail::kmgHeader10 const & Header(*reinterpret_cast<detail::kmgHeader10 const *>(Data));
-
-		size_t Offset = sizeof(detail::kmgHeader10);
+		FILE* File = detail::open_file(Filename, "rb");
+		if(!File)
+			return texture();
+		
+		std::remove_const<decltype(detail::FOURCC_KMG100)>::type FourCC {};
+	    	if(std::fread(FourCC, sizeof(FourCC), 1, File) < 1)
+            	{
+			std::fclose(File);
+                	return texture();
+            	}
+		
+		if(memcmp(FourCC, detail::FOURCC_KMG100, sizeof(detail::FOURCC_KMG100)) != 0)
+		{
+			std::fclose(File);
+                	return texture();
+		}
+		
+		detail::kmgHeader10 Header {};
+		if(std::fread(&Header, sizeof(Header), 1, File) < 1)
+		{
+			std::fclose(File);
+                	return texture();
+		}
 
 		texture Texture(
 			static_cast<target>(Header.Target),
@@ -48,10 +68,11 @@ namespace detail
 			texture::size_type const FaceSize = static_cast<texture::size_type>(Texture.size(Level));
 			for(texture::size_type Face = 0, Faces = Texture.faces(); Face < Faces; ++Face)
 			{
-				std::memcpy(Texture.data(Layer, Face, Level), Data + Offset, FaceSize);
-
-				Offset += FaceSize;
-				GLI_ASSERT(Offset <= Size);
+				if(std::fread(Texture.data(Layer, Face, Level), FaceSize, 1, File) < 1)
+				{
+					std::fclose(File);
+                			return texture();
+				}
 			}
 		}
 
@@ -64,40 +85,8 @@ namespace detail
 	}
 }//namespace detail
 
-	inline texture load_kmg(char const * Data, std::size_t Size)
-	{
-		GLI_ASSERT(Data && (Size >= sizeof(detail::kmgHeader10)));
-
-		// KMG100
-		{
-			if(memcmp(Data, detail::FOURCC_KMG100, sizeof(detail::FOURCC_KMG100)) == 0)
-				return detail::load_kmg100(Data + sizeof(detail::FOURCC_KMG100), Size - sizeof(detail::FOURCC_KMG100));
-		}
-
-		return texture();
-	}
-
-	inline texture load_kmg(char const * Filename)
-	{
-		FILE* File = detail::open_file(Filename, "rb");
-		if(!File)
-			return texture();
-
-		long Beg = std::ftell(File);
-		std::fseek(File, 0, SEEK_END);
-		long End = std::ftell(File);
-		std::fseek(File, 0, SEEK_SET);
-
-		std::vector<char> Data(static_cast<std::size_t>(End - Beg));
-
-		std::fread(&Data[0], 1, Data.size(), File);
-		std::fclose(File);
-
-		return load_kmg(&Data[0], Data.size());
-	}
-
 	inline texture load_kmg(std::string const & Filename)
 	{
-		return load_kmg(Filename.c_str());
+		return load_kmg100(Filename.c_str());
 	}
 }//namespace gli
